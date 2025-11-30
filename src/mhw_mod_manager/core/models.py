@@ -1,0 +1,164 @@
+"""Domain models for mods, profiles, and conflicts."""
+
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Optional
+from uuid import UUID, uuid4
+
+from pydantic import BaseModel, Field
+
+
+class DeploymentMode(str, Enum):
+    """Deployment strategy for mods."""
+
+    SYMLINK = "symlink"
+    COPY = "copy"
+
+
+class ModStatus(str, Enum):
+    """Installation status of a mod."""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    MISSING = "missing"
+    ERROR = "error"
+
+
+class Mod(BaseModel):
+    """Represents a single mod installation."""
+
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    version: Optional[str] = None
+    author: Optional[str] = None
+    description: Optional[str] = None
+    source: Optional[str] = None  # URL or local path reference
+    tags: list[str] = Field(default_factory=list)
+
+    # Installation metadata
+    installed_at: datetime = Field(default_factory=datetime.now)
+    staging_path: Path
+    deployed_files: list[Path] = Field(default_factory=list)
+
+    # Archive info
+    archive_path: Optional[Path] = None
+    archive_checksum: Optional[str] = None
+
+    class Config:
+        json_encoders = {
+            Path: str,
+            UUID: str,
+            datetime: lambda v: v.isoformat(),
+        }
+
+
+class ProfileModEntry(BaseModel):
+    """Represents a mod's configuration within a profile."""
+
+    mod_id: UUID
+    enabled: bool = True
+    load_order: int = 0
+
+    class Config:
+        json_encoders = {UUID: str}
+
+
+class Profile(BaseModel):
+    """A named collection of mod configurations."""
+
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    modified_at: datetime = Field(default_factory=datetime.now)
+
+    # Mod configurations for this profile
+    mods: list[ProfileModEntry] = Field(default_factory=list)
+
+    class Config:
+        json_encoders = {
+            UUID: str,
+            datetime: lambda v: v.isoformat(),
+        }
+
+    def get_mod_entry(self, mod_id: UUID) -> Optional[ProfileModEntry]:
+        """Get the configuration entry for a specific mod."""
+        for entry in self.mods:
+            if entry.mod_id == mod_id:
+                return entry
+        return None
+
+    def set_mod_enabled(self, mod_id: UUID, enabled: bool) -> None:
+        """Enable or disable a mod in this profile."""
+        entry = self.get_mod_entry(mod_id)
+        if entry:
+            entry.enabled = enabled
+            self.modified_at = datetime.now()
+        else:
+            self.mods.append(ProfileModEntry(mod_id=mod_id, enabled=enabled))
+            self.modified_at = datetime.now()
+
+    def set_mod_load_order(self, mod_id: UUID, load_order: int) -> None:
+        """Set the load order for a mod."""
+        entry = self.get_mod_entry(mod_id)
+        if entry:
+            entry.load_order = load_order
+            self.modified_at = datetime.now()
+
+    def get_enabled_mods_ordered(self) -> list[UUID]:
+        """Get list of enabled mod IDs sorted by load order."""
+        enabled = [e for e in self.mods if e.enabled]
+        enabled.sort(key=lambda e: e.load_order)
+        return [e.mod_id for e in enabled]
+
+
+class FileConflict(BaseModel):
+    """Represents a conflict between multiple mods targeting the same file."""
+
+    target_path: Path  # Relative path in game directory
+    conflicting_mods: list[UUID]  # Mod IDs in load order
+    winner_mod_id: UUID  # The mod that actually deploys (last in load order)
+
+    class Config:
+        json_encoders = {
+            Path: str,
+            UUID: str,
+        }
+
+
+class ConflictReport(BaseModel):
+    """Collection of conflicts for a profile."""
+
+    profile_id: UUID
+    conflicts: list[FileConflict] = Field(default_factory=list)
+    generated_at: datetime = Field(default_factory=datetime.now)
+
+    class Config:
+        json_encoders = {
+            UUID: str,
+            datetime: lambda v: v.isoformat(),
+        }
+
+    def get_conflicts_for_mod(self, mod_id: UUID) -> list[FileConflict]:
+        """Get all conflicts involving a specific mod."""
+        return [c for c in self.conflicts if mod_id in c.conflicting_mods]
+
+    def has_conflicts(self) -> bool:
+        """Check if there are any conflicts."""
+        return len(self.conflicts) > 0
+
+
+class DeploymentState(BaseModel):
+    """Tracks the current deployment state."""
+
+    profile_id: UUID
+    deployed_at: datetime = Field(default_factory=datetime.now)
+    deployed_mods: list[UUID] = Field(default_factory=list)
+    deployment_mode: DeploymentMode = DeploymentMode.SYMLINK
+
+    class Config:
+        json_encoders = {
+            UUID: str,
+            datetime: lambda v: v.isoformat(),
+        }
