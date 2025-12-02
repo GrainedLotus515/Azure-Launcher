@@ -36,6 +36,9 @@ class AppConfig(BaseModel):
     # Active profile
     active_profile_id: Optional[str] = None
 
+    # Nexus Mods integration
+    nexus_api_key: Optional[str] = None
+
     class Config:
         json_encoders = {Path: str}
 

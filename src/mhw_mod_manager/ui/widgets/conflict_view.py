@@ -45,9 +45,17 @@ class ConflictViewWidget(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(3)
         self.table.setHorizontalHeaderLabels(["File Path", "Conflicting Mods", "Winner"])
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setColumnWidth(0, 400)
-        self.table.setColumnWidth(1, 300)
+        self.table.setColumnWidth(0, 350)
+        self.table.setColumnWidth(1, 250)
+
+        # Improve table appearance
+        self.table.setShowGrid(False)
+        self.table.setAlternatingRowColors(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setWordWrap(False)
 
         layout.addWidget(self.table)
 

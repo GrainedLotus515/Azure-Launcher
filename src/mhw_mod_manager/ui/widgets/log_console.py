@@ -33,6 +33,8 @@ class LogConsoleWidget(QWidget):
     def _setup_ui(self) -> None:
         """Set up the user interface."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
 
         # Log text display
         self.log_text = QPlainTextEdit()
@@ -45,6 +47,8 @@ class LogConsoleWidget(QWidget):
 
         self.clear_btn = QPushButton("Clear")
         self.clear_btn.setProperty("outlined", True)
+        self.clear_btn.setProperty("small", True)
+        self.clear_btn.setFixedHeight(32)
         self.clear_btn.clicked.connect(self.clear)
         button_layout.addWidget(self.clear_btn)
 

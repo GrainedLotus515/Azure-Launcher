@@ -1,9 +1,10 @@
-# MHW Mod Manager
+# Azure Launcher
 
 A Linux-first desktop mod manager for **Monster Hunter: World** (PC/Steam). Simple, opinionated, and built with modern Python tooling.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/GrainedLotus515/Azure-Launcher/blob/main/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![GitHub](https://img.shields.io/badge/github-Azure--Launcher-blue.svg)](https://github.com/GrainedLotus515/Azure-Launcher)
 
 ## Features
 
@@ -43,8 +44,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 2. Clone the repository
 
 ```bash
-git clone <repository-url>
-cd claude-mm
+git clone https://github.com/GrainedLotus515/Azure-Launcher.git
+cd Azure-Launcher
 ```
 
 ### 3. Create virtual environment and install dependencies

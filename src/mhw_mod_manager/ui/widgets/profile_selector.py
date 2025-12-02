@@ -40,9 +40,12 @@ class ProfileSelectorWidget(QWidget):
     def _setup_ui(self) -> None:
         """Set up the user interface."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
 
         # Profile combo box
         combo_layout = QHBoxLayout()
+        combo_layout.setContentsMargins(0, 0, 0, 0)
         self.profile_combo = QComboBox()
         self.profile_combo.currentIndexChanged.connect(self._on_profile_selected)
         combo_layout.addWidget(self.profile_combo)
@@ -51,19 +54,27 @@ class ProfileSelectorWidget(QWidget):
 
         # Action buttons
         button_layout = QHBoxLayout()
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(8)
 
         self.new_btn = QPushButton("New")
         self.new_btn.setProperty("outlined", True)
+        self.new_btn.setProperty("small", True)
+        self.new_btn.setFixedHeight(32)
         self.new_btn.clicked.connect(self.new_profile_requested.emit)
         button_layout.addWidget(self.new_btn)
 
         self.rename_btn = QPushButton("Rename")
         self.rename_btn.setProperty("flat", True)
+        self.rename_btn.setProperty("small", True)
+        self.rename_btn.setFixedHeight(32)
         self.rename_btn.clicked.connect(self._on_rename_clicked)
         button_layout.addWidget(self.rename_btn)
 
         self.delete_btn = QPushButton("Delete")
         self.delete_btn.setProperty("flat", True)
+        self.delete_btn.setProperty("small", True)
+        self.delete_btn.setFixedHeight(32)
         self.delete_btn.clicked.connect(self._on_delete_clicked)
         button_layout.addWidget(self.delete_btn)
 

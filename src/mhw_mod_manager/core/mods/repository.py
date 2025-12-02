@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import UUID
@@ -50,6 +51,21 @@ class ModRepository:
                     mod_data["archive_path"] = Path(mod_data["archive_path"])
                 if "deployed_files" in mod_data:
                     mod_data["deployed_files"] = [Path(p) for p in mod_data["deployed_files"]]
+
+                # Convert datetime strings back to datetime objects (Nexus metadata)
+                if "nexus_uploaded_at" in mod_data and mod_data["nexus_uploaded_at"]:
+                    try:
+                        mod_data["nexus_uploaded_at"] = datetime.fromisoformat(
+                            mod_data["nexus_uploaded_at"]
+                        )
+                    except (ValueError, TypeError):
+                        mod_data["nexus_uploaded_at"] = None
+
+                # Ensure backwards compatibility - new fields default to None
+                # These fields may not exist in older databases
+                mod_data.setdefault("nexus_mod_id", None)
+                mod_data.setdefault("nexus_file_id", None)
+                mod_data.setdefault("nexus_uploaded_at", None)
 
                 mod = Mod(**mod_data)
                 self._mods[mod.id] = mod

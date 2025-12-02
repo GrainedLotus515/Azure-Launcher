@@ -4,6 +4,7 @@ import hashlib
 import logging
 import shutil
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -30,6 +31,11 @@ class ModInstaller:
         archive_path: Path,
         name: Optional[str] = None,
         root_folder: Optional[str] = None,
+        version: Optional[str] = None,
+        author: Optional[str] = None,
+        nexus_mod_id: Optional[int] = None,
+        nexus_file_id: Optional[int] = None,
+        nexus_uploaded_at: Optional[datetime] = None,
     ) -> Mod:
         """Install a mod from a ZIP archive.
 
@@ -38,6 +44,11 @@ class ModInstaller:
             name: Mod name (defaults to archive filename).
             root_folder: Folder within archive that contains mod files.
                         If None, attempts auto-detection.
+            version: Version string for the mod.
+            author: Author name for the mod.
+            nexus_mod_id: Nexus Mods mod ID (for tracking updates).
+            nexus_file_id: Nexus Mods file ID (for tracking updates).
+            nexus_uploaded_at: Upload timestamp from Nexus Mods.
 
         Returns:
             Newly created Mod instance.
@@ -113,10 +124,15 @@ class ModInstaller:
             mod = Mod(
                 id=mod_id,
                 name=name,
+                version=version,
+                author=author,
                 staging_path=staging_path,
                 deployed_files=[],
                 archive_path=archive_copy,
                 archive_checksum=checksum,
+                nexus_mod_id=nexus_mod_id,
+                nexus_file_id=nexus_file_id,
+                nexus_uploaded_at=nexus_uploaded_at,
             )
 
             logger.info(f"Successfully installed mod '{name}' ({mod_id})")
@@ -219,28 +235,46 @@ class ModInstaller:
         """Detect the root folder in an archive containing mod files.
 
         Looks for common MHW mod structure (e.g., nativePC folder).
+        Only wrapper folders BEFORE nativePC are stripped. The nativePC folder
+        is kept intact since mods are deployed directly to the game folder.
+
+        This handles several archive structures:
+        1. "nativePC/file.txt" -> strips nothing, extracts as "nativePC/file.txt"
+           -> deploys to game/nativePC/file.txt
+
+        2. "ModName/nativePC/file.txt" -> strips "ModName/", extracts as "nativePC/file.txt"
+           -> deploys to game/nativePC/file.txt
+
+        3. "nativePC/nativePC/file.txt" -> strips nothing
+           -> extracts as "nativePC/nativePC/file.txt"
+           -> deploys to game/nativePC/nativePC/file.txt (intentional structure)
 
         Args:
             file_list: List of file paths in the archive.
 
         Returns:
-            Root folder path if detected, None if files are at archive root.
+            Root folder path to strip (wrapper folder only, NOT nativePC),
+            or None if files should be extracted as-is.
         """
         # Look for nativePC folder (common in MHW mods)
         for file_path in file_list:
             if "nativePC/" in file_path or "nativePC\\" in file_path:
-                # Find the parent of nativePC
+                # Find the FIRST nativePC in the path
                 parts = file_path.replace("\\", "/").split("/")
                 if "nativePC" in parts:
                     idx = parts.index("nativePC")
+
                     if idx > 0:
-                        # There's a root folder before nativePC
+                        # There's a wrapper folder before nativePC - strip only the wrapper
+                        # e.g., "ModName/nativePC/file.txt" -> strip "ModName/"
+                        # Result: "nativePC/file.txt" is preserved
                         return "/".join(parts[:idx]) + "/"
                     else:
-                        # nativePC is at root
+                        # nativePC is at root - don't strip anything
+                        # e.g., "nativePC/file.txt" -> keep as-is
                         return None
 
-        # Check if all files are in a single top-level directory
+        # No nativePC found - check if all files are in a single top-level directory
         top_level_dirs = set()
         for file_path in file_list:
             parts = file_path.replace("\\", "/").split("/")
@@ -248,10 +282,11 @@ class ModInstaller:
                 top_level_dirs.add(parts[0])
 
         if len(top_level_dirs) == 1:
-            # All files in one top-level directory
+            # All files in one top-level directory (wrapper folder)
+            # Strip it so files are at root of staging
             return list(top_level_dirs)[0] + "/"
 
-        # Files are at root level
+        # Files are at root level with no nativePC - extract as-is
         return None
 
     @staticmethod

@@ -24,7 +24,6 @@ class DeploymentEngine:
         """
         self.config_manager = config_manager
         self.game_dir = game_dir
-        self.native_pc_dir = game_dir / "nativePC"
         self._deployed_files: set[Path] = set()
 
     def deploy(
@@ -46,8 +45,8 @@ class DeploymentEngine:
         Raises:
             ValueError: If game directory is invalid.
         """
-        if not self.native_pc_dir.exists():
-            raise ValueError(f"Game nativePC directory not found: {self.native_pc_dir}")
+        if not self.game_dir.exists():
+            raise ValueError(f"Game directory not found: {self.game_dir}")
 
         if mode is None:
             mode = self.config_manager.get().deployment_mode
@@ -80,7 +79,7 @@ class DeploymentEngine:
 
             # Mark files for deployment (later mods override earlier ones)
             for relative_path in mod_files:
-                target_path = self.native_pc_dir / relative_path
+                target_path = self.game_dir / relative_path
                 deployed_files[relative_path] = mod
 
             deployed_mods.append(mod_id)
@@ -88,7 +87,7 @@ class DeploymentEngine:
         # Now perform actual deployment
         for relative_path, mod in deployed_files.items():
             source_path = mod.staging_path / relative_path
-            target_path = self.native_pc_dir / relative_path
+            target_path = self.game_dir / relative_path
 
             try:
                 self._deploy_file(source_path, target_path, mode)
@@ -147,7 +146,7 @@ class DeploymentEngine:
         """
         # This is a simplified check
         # In production, you'd verify each file
-        return self.native_pc_dir.exists()
+        return self.game_dir.exists()
 
     def _deploy_file(self, source: Path, target: Path, mode: DeploymentMode) -> None:
         """Deploy a single file.

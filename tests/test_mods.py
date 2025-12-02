@@ -160,13 +160,18 @@ class TestProfile:
 class TestModInstaller:
     """Tests for ModInstaller."""
 
-    def test_install_from_zip(self):
-        """Test installing a mod from a ZIP archive."""
+    def test_install_from_zip_nativepc_at_root(self):
+        """Test installing a mod from a ZIP with nativePC at root.
+
+        The nativePC folder should be preserved since mods are deployed
+        directly to the game folder.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create a test ZIP
+            # Create a test ZIP with nativePC at root
             zip_path = Path(tmpdir) / "test_mod.zip"
             with zipfile.ZipFile(zip_path, "w") as zf:
                 zf.writestr("nativePC/test_file.txt", "test content")
+                zf.writestr("nativePC/subdir/another.txt", "more content")
 
             # Setup config
             config_dir = Path(tmpdir) / "config"
@@ -183,7 +188,144 @@ class TestModInstaller:
 
             assert mod.name == "Test Mod"
             assert mod.staging_path.exists()
+            # nativePC should be preserved in staging
             assert (mod.staging_path / "nativePC/test_file.txt").exists()
+            assert (mod.staging_path / "nativePC/subdir/another.txt").exists()
+
+    def test_install_from_zip_wrapper_folder(self):
+        """Test installing a mod with wrapper folder around nativePC.
+
+        Archives like "ModName/nativePC/files" should strip only the wrapper,
+        keeping nativePC intact.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a test ZIP with wrapper folder
+            zip_path = Path(tmpdir) / "test_mod.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("MyMod/nativePC/test_file.txt", "test content")
+                zf.writestr("MyMod/nativePC/subdir/another.txt", "more content")
+
+            # Setup config
+            config_dir = Path(tmpdir) / "config"
+            config_dir.mkdir()
+            config_manager = ConfigManager(config_dir)
+            config_manager.update(
+                staging_directory=Path(tmpdir) / "staging",
+                downloads_directory=Path(tmpdir) / "downloads",
+            )
+
+            # Install
+            installer = ModInstaller(config_manager)
+            mod = installer.install_from_zip(zip_path, "Test Mod")
+
+            assert mod.name == "Test Mod"
+            assert mod.staging_path.exists()
+            # Wrapper stripped, nativePC preserved
+            assert (mod.staging_path / "nativePC/test_file.txt").exists()
+            assert (mod.staging_path / "nativePC/subdir/another.txt").exists()
+            # Wrapper should be gone
+            assert not (mod.staging_path / "MyMod").exists()
+
+    def test_install_from_zip_no_nativepc(self):
+        """Test installing a mod without nativePC folder.
+
+        Some mods may not have the nativePC structure and should be
+        extracted as-is (or with wrapper folder stripped).
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a test ZIP without nativePC
+            zip_path = Path(tmpdir) / "test_mod.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("ModFolder/test_file.txt", "test content")
+                zf.writestr("ModFolder/subdir/another.txt", "more content")
+
+            # Setup config
+            config_dir = Path(tmpdir) / "config"
+            config_dir.mkdir()
+            config_manager = ConfigManager(config_dir)
+            config_manager.update(
+                staging_directory=Path(tmpdir) / "staging",
+                downloads_directory=Path(tmpdir) / "downloads",
+            )
+
+            # Install
+            installer = ModInstaller(config_manager)
+            mod = installer.install_from_zip(zip_path, "Test Mod")
+
+            assert mod.name == "Test Mod"
+            assert mod.staging_path.exists()
+            # Wrapper folder should be stripped, files at root
+            assert (mod.staging_path / "test_file.txt").exists()
+            assert (mod.staging_path / "subdir/another.txt").exists()
+
+    def test_install_from_zip_nested_nativepc_intentional(self):
+        """Test installing a mod with intentional nested nativePC structure.
+
+        Some mods intentionally have nativePC/nativePC/... structure.
+        The entire structure should be preserved as-is.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a test ZIP with intentional nested nativePC
+            zip_path = Path(tmpdir) / "test_mod.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                # This structure is intentional - both nativePCs should be preserved
+                zf.writestr("nativePC/nativePC/test_file.txt", "test content")
+                zf.writestr("nativePC/nativePC/subdir/another.txt", "more content")
+                # Also include a regular file at first nativePC level
+                zf.writestr("nativePC/regular_file.txt", "regular content")
+
+            # Setup config
+            config_dir = Path(tmpdir) / "config"
+            config_dir.mkdir()
+            config_manager = ConfigManager(config_dir)
+            config_manager.update(
+                staging_directory=Path(tmpdir) / "staging",
+                downloads_directory=Path(tmpdir) / "downloads",
+            )
+
+            # Install
+            installer = ModInstaller(config_manager)
+            mod = installer.install_from_zip(zip_path, "Test Mod")
+
+            assert mod.name == "Test Mod"
+            assert mod.staging_path.exists()
+            # Both nativePCs preserved - entire structure kept
+            assert (mod.staging_path / "nativePC/nativePC/test_file.txt").exists()
+            assert (mod.staging_path / "nativePC/nativePC/subdir/another.txt").exists()
+            assert (mod.staging_path / "nativePC/regular_file.txt").exists()
+
+    def test_install_from_zip_wrapper_with_nested_nativepc(self):
+        """Test wrapper folder with nested nativePC structure.
+
+        Archive structure: ModName/nativePC/nativePC/file.txt
+        Should strip only "ModName/" wrapper, preserving both nativePCs.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zip_path = Path(tmpdir) / "test_mod.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("MyMod/nativePC/nativePC/deep_file.txt", "deep content")
+                zf.writestr("MyMod/nativePC/normal_file.txt", "normal content")
+
+            # Setup config
+            config_dir = Path(tmpdir) / "config"
+            config_dir.mkdir()
+            config_manager = ConfigManager(config_dir)
+            config_manager.update(
+                staging_directory=Path(tmpdir) / "staging",
+                downloads_directory=Path(tmpdir) / "downloads",
+            )
+
+            # Install
+            installer = ModInstaller(config_manager)
+            mod = installer.install_from_zip(zip_path, "Test Mod")
+
+            assert mod.name == "Test Mod"
+            assert mod.staging_path.exists()
+            # Wrapper stripped, both nativePCs preserved
+            assert (mod.staging_path / "nativePC/nativePC/deep_file.txt").exists()
+            assert (mod.staging_path / "nativePC/normal_file.txt").exists()
+            # Verify wrapper is gone
+            assert not (mod.staging_path / "MyMod").exists()
 
     def test_install_from_folder(self):
         """Test installing a mod from a folder."""
@@ -218,14 +360,14 @@ class TestDeploymentEngine:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Setup game directory
             game_dir = Path(tmpdir) / "game"
-            native_pc = game_dir / "nativePC"
-            native_pc.mkdir(parents=True)
+            game_dir.mkdir(parents=True)
 
-            # Setup staging
+            # Setup staging with nativePC structure (as mods should have)
             staging_dir = Path(tmpdir) / "staging"
             mod_staging = staging_dir / "test_mod"
-            mod_staging.mkdir(parents=True)
-            (mod_staging / "test_file.txt").write_text("content")
+            mod_native_pc = mod_staging / "nativePC"
+            mod_native_pc.mkdir(parents=True)
+            (mod_native_pc / "test_file.txt").write_text("content")
 
             # Create mod and profile
             mod = Mod(
@@ -241,12 +383,13 @@ class TestDeploymentEngine:
             config_dir.mkdir()
             config_manager = ConfigManager(config_dir)
 
-            # Deploy
+            # Deploy - deploys directly to game folder
             engine = DeploymentEngine(config_manager, game_dir)
             state = engine.deploy([mod], profile)
 
             assert mod.id in state.deployed_mods
-            deployed_file = native_pc / "test_file.txt"
+            # File should be at game/nativePC/test_file.txt
+            deployed_file = game_dir / "nativePC" / "test_file.txt"
             assert deployed_file.exists()
 
 

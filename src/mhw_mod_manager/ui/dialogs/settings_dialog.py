@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -23,6 +24,8 @@ from PySide6.QtWidgets import (
 from ...core.config import ConfigManager
 from ...core.discovery import GameDiscovery
 from ...core.models import DeploymentMode
+from ...nexus.api_client import NexusAPIClient, NexusAuthError
+from ...nexus.protocol_handler import NXMProtocolHandler
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +121,47 @@ class SettingsDialog(QDialog):
         deployment_group.setLayout(deployment_layout)
         layout.addWidget(deployment_group)
 
+        # Nexus Mods section
+        nexus_group = QGroupBox("Nexus Mods Integration")
+        nexus_layout = QFormLayout()
+
+        # API key
+        api_key_layout = QHBoxLayout()
+        self.api_key_edit = QLineEdit()
+        self.api_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_edit.setPlaceholderText("Enter your Nexus Mods API key")
+        api_key_layout.addWidget(self.api_key_edit)
+
+        validate_btn = QPushButton("Validate")
+        validate_btn.setProperty("outlined", True)
+        validate_btn.clicked.connect(self._validate_api_key)
+        api_key_layout.addWidget(validate_btn)
+
+        nexus_layout.addRow("API Key:", api_key_layout)
+
+        # User info label
+        self.user_info_label = QLabel("Not connected")
+        self.user_info_label.setProperty("secondary", True)
+        nexus_layout.addRow("Status:", self.user_info_label)
+
+        # Protocol handler
+        register_protocol_btn = QPushButton("Register NXM Protocol Handler")
+        register_protocol_btn.setProperty("outlined", True)
+        register_protocol_btn.clicked.connect(self._register_nxm_protocol)
+        nexus_layout.addRow("", register_protocol_btn)
+
+        nexus_group.setLayout(nexus_layout)
+        layout.addWidget(nexus_group)
+
         # Help text
         help_label = QLabel(
-            "<i>Symlink mode creates symbolic links (recommended for Linux). "
+            "<i>Get your API key from: https://www.nexusmods.com/users/myaccount?tab=api<br>"
+            "Symlink mode creates symbolic links (recommended for Linux). "
             "Copy mode duplicates files.</i>"
         )
         help_label.setProperty("secondary", True)
         help_label.setWordWrap(True)
+        help_label.setOpenExternalLinks(True)
         layout.addWidget(help_label)
 
         layout.addStretch()
@@ -154,6 +191,11 @@ class SettingsDialog(QDialog):
 
         self.keep_archives_check.setChecked(config.keep_archives)
 
+        # Nexus settings
+        if config.nexus_api_key:
+            self.api_key_edit.setText(config.nexus_api_key)
+            self._validate_api_key_silent()
+
     def _save_and_accept(self) -> None:
         """Save settings and close dialog."""
         # Validate game directory
@@ -170,12 +212,15 @@ class SettingsDialog(QDialog):
         deployment_mode = DeploymentMode(mode_value)
 
         # Update configuration
+        api_key = self.api_key_edit.text().strip() or None
+
         self.config_manager.update(
             game_directory=game_dir,
             staging_directory=Path(self.staging_dir_edit.text()),
             downloads_directory=Path(self.downloads_dir_edit.text()),
             deployment_mode=deployment_mode,
             keep_archives=self.keep_archives_check.isChecked(),
+            nexus_api_key=api_key,
         )
 
         logger.info("Settings saved")
@@ -222,3 +267,79 @@ class SettingsDialog(QDialog):
             logger.info(f"Auto-detected game directory: {detected}")
         else:
             logger.warning("Could not auto-detect game directory")
+
+    def _validate_api_key(self) -> None:
+        """Validate Nexus API key and show result."""
+        api_key = self.api_key_edit.text().strip()
+        if not api_key:
+            QMessageBox.warning(self, "Validation Error", "Please enter an API key.")
+            return
+
+        try:
+            client = NexusAPIClient(api_key)
+            user = client.validate_api_key()
+            client.close()
+
+            # Update UI
+            premium_text = " (Premium)" if user.is_premium else " (Free)"
+            self.user_info_label.setText(f"Connected as {user.username}{premium_text}")
+            self.user_info_label.setStyleSheet("color: green;")
+
+            QMessageBox.information(
+                self,
+                "Validation Successful",
+                f"Connected as {user.username}\n"
+                f"Premium: {'Yes' if user.is_premium else 'No'}\n"
+                f"Supporter: {'Yes' if user.is_supporter else 'No'}",
+            )
+            logger.info(f"Nexus API key validated for user: {user.username}")
+
+        except NexusAuthError as e:
+            self.user_info_label.setText("Authentication failed")
+            self.user_info_label.setStyleSheet("color: red;")
+            QMessageBox.critical(self, "Validation Failed", str(e))
+            logger.error(f"Nexus API key validation failed: {e}")
+        except Exception as e:
+            self.user_info_label.setText("Connection error")
+            self.user_info_label.setStyleSheet("color: red;")
+            QMessageBox.critical(self, "Validation Error", f"Error: {e}")
+            logger.error(f"Nexus API key validation error: {e}")
+
+    def _validate_api_key_silent(self) -> None:
+        """Validate API key without showing dialogs."""
+        api_key = self.api_key_edit.text().strip()
+        if not api_key:
+            return
+
+        try:
+            client = NexusAPIClient(api_key)
+            user = client.validate_api_key()
+            client.close()
+
+            premium_text = " (Premium)" if user.is_premium else " (Free)"
+            self.user_info_label.setText(f"Connected as {user.username}{premium_text}")
+            self.user_info_label.setStyleSheet("color: green;")
+        except Exception:
+            self.user_info_label.setText("Not connected")
+            self.user_info_label.setStyleSheet("")
+
+    def _register_nxm_protocol(self) -> None:
+        """Register NXM protocol handler."""
+        try:
+            if NXMProtocolHandler.register():
+                QMessageBox.information(
+                    self,
+                    "Registration Successful",
+                    "NXM protocol handler registered successfully.\n\n"
+                    "You can now download mods from Nexus Mods website directly to the mod manager.",
+                )
+                logger.info("NXM protocol handler registered")
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Registration Failed",
+                    "Failed to register NXM protocol handler. Check logs for details.",
+                )
+        except Exception as e:
+            QMessageBox.critical(self, "Registration Error", f"Error: {e}")
+            logger.error(f"NXM protocol registration error: {e}")

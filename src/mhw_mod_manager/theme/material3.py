@@ -175,6 +175,50 @@ def get_stylesheet(theme: Material3Theme = Material3Theme()) -> str:
             background-color: {theme.surface_container_highest};
         }}
 
+        /* Small buttons for table actions */
+        QPushButton[small="true"] {{
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 12px;
+            min-height: 16px;
+        }}
+
+        QPushButton[outlined="true"][small="true"] {{
+            background-color: transparent;
+            color: {theme.primary};
+            border: 1px solid {theme.outline};
+            padding: 4px 12px;
+            border-radius: 14px;
+        }}
+
+        QPushButton[outlined="true"][small="true"]:hover {{
+            background-color: {theme.surface_container_high};
+            border-color: {theme.primary};
+        }}
+
+        /* Flat small buttons for profile actions */
+        QPushButton[flat="true"][small="true"] {{
+            background-color: transparent;
+            color: {theme.primary};
+            border: none;
+            padding: 4px 12px;
+            border-radius: 14px;
+            font-size: 12px;
+            min-height: 16px;
+        }}
+
+        QPushButton[flat="true"][small="true"]:hover {{
+            background-color: {theme.surface_container_high};
+        }}
+
+        QPushButton[flat="true"][small="true"]:pressed {{
+            background-color: {theme.surface_container_highest};
+        }}
+
+        QPushButton[flat="true"][small="true"]:disabled {{
+            color: {theme.on_surface_variant};
+        }}
+
         /* Text buttons */
         QPushButton[flat="true"] {{
             background-color: transparent;
@@ -278,11 +322,16 @@ def get_stylesheet(theme: Material3Theme = Material3Theme()) -> str:
             color: {theme.on_surface};
             border: 1px solid {theme.outline_variant};
             border-radius: 12px;
-            gridline-color: {theme.outline_variant};
+            gridline-color: transparent;
+            selection-background-color: {theme.secondary_container};
+            selection-color: {theme.on_secondary_container};
+            outline: none;
         }}
 
         QTableWidget::item {{
-            padding: 8px;
+            padding: 8px 12px;
+            border: none;
+            border-bottom: 1px solid {theme.surface_container};
         }}
 
         QTableWidget::item:selected {{
@@ -290,13 +339,83 @@ def get_stylesheet(theme: Material3Theme = Material3Theme()) -> str:
             color: {theme.on_secondary_container};
         }}
 
+        QTableWidget::item:hover {{
+            background-color: {theme.surface_container_high};
+        }}
+
+        QHeaderView {{
+            background-color: {theme.surface_container_high};
+        }}
+
         QHeaderView::section {{
-            background-color: {theme.surface_container_highest};
+            background-color: {theme.surface_container_high};
             color: {theme.on_surface_variant};
-            padding: 8px;
+            padding: 12px 12px;
             border: none;
             border-bottom: 1px solid {theme.outline_variant};
-            font-weight: 600;
+            font-weight: 500;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+
+        QHeaderView::section:first {{
+            border-top-left-radius: 12px;
+        }}
+
+        QHeaderView::section:last {{
+            border-top-right-radius: 12px;
+        }}
+
+        QHeaderView::section:hover {{
+            background-color: {theme.surface_container_highest};
+        }}
+
+        /* Table cell widgets (checkboxes, action buttons) */
+        QWidget[tableCell="true"] {{
+            background-color: transparent;
+        }}
+
+        /* Checkboxes in table cells */
+        QTableWidget QCheckBox {{
+            background-color: transparent;
+        }}
+
+        QTableWidget QCheckBox::indicator {{
+            width: 18px;
+            height: 18px;
+            border: 2px solid {theme.outline};
+            border-radius: 2px;
+            background-color: transparent;
+        }}
+
+        QTableWidget QCheckBox::indicator:checked {{
+            background-color: {theme.primary};
+            border-color: {theme.primary};
+        }}
+
+        QTableWidget QCheckBox::indicator:hover {{
+            border-color: {theme.primary};
+        }}
+
+        /* Buttons in table cells */
+        QTableWidget QPushButton {{
+            background-color: transparent;
+            color: {theme.primary};
+            border: 1px solid {theme.outline};
+            border-radius: 14px;
+            padding: 4px 12px;
+            font-size: 12px;
+            min-width: 60px;
+        }}
+
+        QTableWidget QPushButton:hover {{
+            background-color: {theme.surface_container_high};
+            border-color: {theme.primary};
+        }}
+
+        QTableWidget QPushButton:pressed {{
+            background-color: {theme.surface_container_highest};
         }}
 
         /* Text edits */
@@ -375,28 +494,44 @@ def get_stylesheet(theme: Material3Theme = Material3Theme()) -> str:
             color: {theme.on_surface};
         }}
 
-        /* Checkboxes */
+        /* Checkboxes - Material 3 style */
         QCheckBox {{
             spacing: 8px;
             color: {theme.on_surface};
+            background-color: transparent;
         }}
 
         QCheckBox::indicator {{
             width: 18px;
             height: 18px;
             border: 2px solid {theme.outline};
-            border-radius: 4px;
+            border-radius: 2px;
             background-color: transparent;
         }}
 
         QCheckBox::indicator:hover {{
             border-color: {theme.primary};
+            background-color: rgba(137, 180, 250, 0.08);
         }}
 
         QCheckBox::indicator:checked {{
             background-color: {theme.primary};
             border-color: {theme.primary};
-            image: none;
+        }}
+
+        QCheckBox::indicator:checked:hover {{
+            background-color: {theme.primary};
+            border-color: {theme.primary};
+        }}
+
+        QCheckBox::indicator:disabled {{
+            border-color: {theme.outline_variant};
+            background-color: {theme.surface_container_low};
+        }}
+
+        QCheckBox::indicator:checked:disabled {{
+            background-color: {theme.outline_variant};
+            border-color: {theme.outline_variant};
         }}
 
         /* Radio buttons */
@@ -481,8 +616,14 @@ def get_stylesheet(theme: Material3Theme = Material3Theme()) -> str:
             background-color: {theme.surface};
             border: none;
             border-bottom: 1px solid {theme.outline_variant};
-            spacing: 8px;
-            padding: 8px;
+            spacing: 12px;
+            padding: 12px 16px;
+        }}
+
+        QToolBar::separator {{
+            background-color: {theme.outline_variant};
+            width: 1px;
+            margin: 4px 8px;
         }}
 
         QToolButton {{
@@ -563,5 +704,40 @@ def get_stylesheet(theme: Material3Theme = Material3Theme()) -> str:
 
         QLabel[secondary="true"] {{
             color: {theme.on_surface_variant};
+        }}
+
+        QLabel[heading="true"] {{
+            font-size: 16px;
+            font-weight: 600;
+            color: {theme.on_surface};
+        }}
+
+        QLabel[title="true"] {{
+            font-size: 24px;
+            font-weight: 500;
+            color: {theme.on_surface};
+        }}
+
+        /* Cards */
+        QWidget[card="true"] {{
+            background-color: {theme.surface_container};
+            border: 1px solid {theme.outline_variant};
+            border-radius: 12px;
+            padding: 12px;
+        }}
+
+        QWidget[card="true"]:hover {{
+            background-color: {theme.surface_container_high};
+            border-color: {theme.outline};
+        }}
+
+        /* Scroll area styling */
+        QScrollArea {{
+            background-color: transparent;
+            border: none;
+        }}
+
+        QScrollArea > QWidget > QWidget {{
+            background-color: transparent;
         }}
     """

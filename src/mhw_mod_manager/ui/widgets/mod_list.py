@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ...core.models import Mod, Profile
+from ...nexus.version_utils import format_version_display
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +55,26 @@ class ModListWidget(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self.table.horizontalHeader().setStretchLastSection(False)
-        self.table.setColumnWidth(0, 80)
-        self.table.setColumnWidth(1, 300)
-        self.table.setColumnWidth(2, 100)
-        self.table.setColumnWidth(3, 100)
-        self.table.setColumnWidth(4, 120)
+
+        # Set column widths - stretch the Name column instead of Actions
+        self.table.setColumnWidth(0, 80)  # Enabled
+        self.table.setColumnWidth(2, 100)  # Version (wider to show formatted version)
+        self.table.setColumnWidth(3, 100)  # Load Order
+        self.table.setColumnWidth(4, 160)  # Actions
+
+        # Stretch the Name column to fill available space
+        from PySide6.QtWidgets import QHeaderView
+
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+
+        # Improve table appearance
+        self.table.setShowGrid(False)
+        self.table.setAlternatingRowColors(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setWordWrap(False)
+
+        # Set default row height for better cell widget rendering
+        self.table.verticalHeader().setDefaultSectionSize(56)
 
         layout.addWidget(self.table)
 
@@ -118,43 +134,55 @@ class ModListWidget(QWidget):
                 enabled = entry.enabled
                 load_order = entry.load_order
 
-        # Enabled checkbox
-        checkbox_widget = QWidget()
-        checkbox_layout = QHBoxLayout(checkbox_widget)
-        checkbox_layout.setContentsMargins(8, 0, 8, 0)
+        # Enabled checkbox - centered in cell using container widget
+        checkbox_container = QWidget()
+        checkbox_container.setStyleSheet("background-color: transparent;")
+        checkbox_layout = QHBoxLayout(checkbox_container)
+        checkbox_layout.setContentsMargins(0, 0, 0, 0)
+        checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         checkbox = QCheckBox()
         checkbox.setChecked(enabled)
         checkbox.stateChanged.connect(
             lambda state, m=mod: self._on_mod_toggled(m, state == Qt.CheckState.Checked.value)
         )
         checkbox_layout.addWidget(checkbox)
-        checkbox_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.table.setCellWidget(row, 0, checkbox_widget)
+        self.table.setCellWidget(row, 0, checkbox_container)
 
         # Name
         name_item = QTableWidgetItem(mod.name)
         name_item.setData(Qt.ItemDataRole.UserRole, str(mod.id))
         self.table.setItem(row, 1, name_item)
 
-        # Version
-        version_item = QTableWidgetItem(mod.version or "N/A")
+        # Version - format for display
+        version_text = format_version_display(mod.version) if mod.version else "N/A"
+        version_item = QTableWidgetItem(version_text)
+        # Add tooltip with full version info including Nexus metadata
+        tooltip_parts = [f"Version: {version_text}"]
+        if mod.nexus_mod_id:
+            tooltip_parts.append(f"Nexus Mod ID: {mod.nexus_mod_id}")
+        if mod.nexus_file_id:
+            tooltip_parts.append(f"Nexus File ID: {mod.nexus_file_id}")
+        if mod.nexus_uploaded_at:
+            tooltip_parts.append(f"Uploaded: {mod.nexus_uploaded_at.strftime('%Y-%m-%d')}")
+        version_item.setToolTip("\n".join(tooltip_parts))
         self.table.setItem(row, 2, version_item)
 
         # Load order
         order_item = QTableWidgetItem(str(load_order))
         self.table.setItem(row, 3, order_item)
 
-        # Actions
-        actions_widget = QWidget()
-        actions_layout = QHBoxLayout(actions_widget)
+        # Actions - button centered in cell using container widget
+        actions_container = QWidget()
+        actions_container.setStyleSheet("background-color: transparent;")
+        actions_layout = QHBoxLayout(actions_container)
         actions_layout.setContentsMargins(4, 4, 4, 4)
-
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         remove_btn = QPushButton("Remove")
-        remove_btn.setProperty("outlined", True)
+        remove_btn.setFixedHeight(32)
+        remove_btn.setFixedWidth(120)
         remove_btn.clicked.connect(lambda: self.mod_remove_requested.emit(mod.id))
         actions_layout.addWidget(remove_btn)
-
-        self.table.setCellWidget(row, 4, actions_widget)
+        self.table.setCellWidget(row, 4, actions_container)
 
     def _on_mod_toggled(self, mod: Mod, enabled: bool) -> None:
         """Handle mod enable/disable toggle.

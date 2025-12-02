@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSplitter,
+    QStackedLayout,
     QStatusBar,
     QTabWidget,
     QToolBar,
@@ -22,19 +23,23 @@ from PySide6.QtWidgets import (
 
 from .core.config import ConfigManager
 from .core.discovery import GameDiscovery
-from .core.models import Mod, Profile
+from .core.models import Mod, NexusMod, Profile
 from .core.mods.conflicts import ConflictDetector
 from .core.mods.deployment import DeploymentEngine
 from .core.mods.installer import ModInstaller
 from .core.mods.profiles import ProfileManager
 from .core.mods.repository import ModRepository
+from .nexus import NexusService
 from .services.logging_service import LoggingService
 from .services.task_runner import TaskRunner
 from .ui.dialogs.add_mod_dialog import AddModDialog
 from .ui.dialogs.settings_dialog import SettingsDialog
 from .ui.widgets.conflict_view import ConflictViewWidget
+from .ui.widgets.downloads_panel import DownloadsPanelWidget
 from .ui.widgets.log_console import LogConsoleWidget
+from .ui.widgets.mod_detail_view import ModDetailViewWidget
 from .ui.widgets.mod_list import ModListWidget
+from .ui.widgets.nexus_browser import NexusBrowserWidget
 from .ui.widgets.profile_selector import ProfileSelectorWidget
 
 logger = logging.getLogger(__name__)
@@ -47,22 +52,25 @@ class MainWindow(QMainWindow):
         self,
         config_manager: ConfigManager,
         logging_service: LoggingService,
+        nxm_link: Optional[str] = None,
     ) -> None:
         """Initialize the main window.
 
         Args:
             config_manager: Configuration manager.
             logging_service: Logging service.
+            nxm_link: Optional NXM protocol link to process.
         """
         super().__init__()
 
         self.config_manager = config_manager
         self.logging_service = logging_service
+        self.nxm_link = nxm_link
 
         # Core services
         self.mod_repository = ModRepository()
         self.profile_manager = ProfileManager()
-        self.task_runner = TaskRunner()
+        self.task_runner = TaskRunner(parent=self)
 
         self.mod_installer: Optional[ModInstaller] = None
         self.deployment_engine: Optional[DeploymentEngine] = None
@@ -70,10 +78,18 @@ class MainWindow(QMainWindow):
 
         # State
         self.current_profile: Optional[Profile] = None
+        self._nexus_initialized = False
 
         self._setup_ui()
         self._connect_signals()
         self._initialize()
+
+        # Initialize Nexus service after UI is set up
+        self._setup_nexus_service()
+
+        # Handle NXM link if provided
+        if self.nxm_link:
+            self._handle_nxm_link_on_startup()
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""
@@ -149,9 +165,28 @@ class MainWindow(QMainWindow):
         self.conflict_view = ConflictViewWidget()
         self.tab_widget.addTab(self.conflict_view, "Conflicts")
 
+        # Nexus Mods tab (browser and detail view)
+        self.nexus_widget = QWidget()
+        self.nexus_layout = QStackedLayout(self.nexus_widget)
+
+        self.nexus_browser = NexusBrowserWidget()
+        self.mod_detail_view = ModDetailViewWidget()
+
+        self.nexus_layout.addWidget(self.nexus_browser)  # index 0
+        self.nexus_layout.addWidget(self.mod_detail_view)  # index 1
+
+        self.nexus_tab_index = self.tab_widget.addTab(self.nexus_widget, "Nexus Mods")
+
+        # Downloads tab
+        self.downloads_panel = DownloadsPanelWidget()
+        self.tab_widget.addTab(self.downloads_panel, "Downloads")
+
         # Log tab
         self.log_console = LogConsoleWidget()
         self.tab_widget.addTab(self.log_console, "Log")
+
+        # Connect tab change signal
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
 
         return self.tab_widget
 
@@ -580,6 +615,234 @@ class MainWindow(QMainWindow):
                     self.config_manager, config.game_directory
                 )
                 logger.info("Configuration updated")
+
+    def _setup_nexus_service(self) -> None:
+        """Set up Nexus Mods service and connect signals."""
+        # Create Nexus service
+        self.nexus_service = NexusService(
+            self.config_manager,
+            self.mod_installer,
+            self.mod_repository,
+        )
+
+        # Connect Nexus browser signals
+        self.nexus_browser.mod_selected.connect(self._on_nexus_mod_selected)
+        self.nexus_browser.refresh_requested.connect(self._on_nexus_refresh)
+
+        # Connect mod detail view signals
+        self.mod_detail_view.back_requested.connect(lambda: self.nexus_layout.setCurrentIndex(0))
+        self.mod_detail_view.download_requested.connect(self._on_nexus_download)
+
+        # Connect Nexus service signals
+        self.nexus_service.mods_loaded.connect(self._on_nexus_mods_loaded)
+        self.nexus_service.mod_details_loaded.connect(self._on_nexus_mod_details)
+        self.nexus_service.download_progress.connect(self.downloads_panel.on_download_progress)
+        self.nexus_service.download_manager.download_status_changed.connect(
+            self.downloads_panel.on_download_status_changed
+        )
+        self.nexus_service.download_manager.download_added.connect(
+            self.downloads_panel.add_download
+        )
+        self.nexus_service.download_completed.connect(self._on_nexus_download_completed)
+        self.nexus_service.mod_installed.connect(self._on_nexus_mod_installed)
+        self.nexus_service.error_occurred.connect(self._on_nexus_error)
+
+        logger.info("Nexus service initialized")
+
+    @Slot(int)
+    def _on_tab_changed(self, index: int) -> None:
+        """Handle tab change to lazy-load Nexus content.
+
+        Args:
+            index: New tab index.
+        """
+        if index == self.nexus_tab_index and not self._nexus_initialized:
+            if self.nexus_service.is_configured():
+                # Load initial content
+                self.status_bar.showMessage("Loading Nexus mods...")
+                self.nexus_service.load_trending_mods()
+                self.nexus_service.load_latest_mods()
+                self.nexus_service.load_updated_mods()
+                self._nexus_initialized = True
+                self.status_bar.showMessage("Nexus mods loaded", 3000)
+            else:
+                # Prompt for API key
+                self.nexus_browser.set_status(
+                    "Configure your Nexus API key in Settings to browse mods"
+                )
+
+    @Slot(int)
+    def _on_nexus_mod_selected(self, mod_id: int) -> None:
+        """Handle mod selection from browser.
+
+        Args:
+            mod_id: Selected mod ID.
+        """
+        try:
+            self.status_bar.showMessage(f"Loading mod details...")
+            mod, files = self.nexus_service.load_mod_details(mod_id)
+            self.mod_detail_view.set_mod(mod, files, self.nexus_service.is_premium())
+            self.nexus_layout.setCurrentIndex(1)  # Show detail view
+            self.status_bar.showMessage("Mod details loaded", 2000)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load mod details: {e}")
+            logger.error(f"Failed to load mod {mod_id}: {e}")
+
+    @Slot(str)
+    def _on_nexus_refresh(self, tab_name: str) -> None:
+        """Handle refresh request from browser.
+
+        Args:
+            tab_name: Tab to refresh (trending, latest, updated).
+        """
+        self.status_bar.showMessage(f"Refreshing {tab_name} mods...")
+
+        if tab_name == "trending":
+            self.nexus_service.load_trending_mods(use_cache=False)
+        elif tab_name == "latest":
+            self.nexus_service.load_latest_mods(use_cache=False)
+        elif tab_name == "updated":
+            self.nexus_service.load_updated_mods(use_cache=False)
+
+        self.status_bar.showMessage(f"{tab_name.capitalize()} mods refreshed", 2000)
+
+    @Slot(int, int)
+    def _on_nexus_download(self, mod_id: int, file_id: int) -> None:
+        """Handle download request from mod detail view.
+
+        Args:
+            mod_id: Mod ID.
+            file_id: File ID to download.
+        """
+        try:
+            # Load mod and file details
+            mod, files = self.nexus_service.load_mod_details(mod_id)
+            mod_file = next((f for f in files if f.file_id == file_id), None)
+
+            if not mod_file:
+                QMessageBox.warning(self, "Error", "File not found")
+                return
+
+            # Create download entry
+            download = self.nexus_service.create_download(mod, mod_file)
+
+            # Start download based on tier
+            if self.nexus_service.is_premium():
+                self.nexus_service.start_premium_download(download.id)
+                self.status_bar.showMessage(f"Downloading {mod.name}...")
+            else:
+                # Free tier - download is pending
+                QMessageBox.information(
+                    self,
+                    "Download Ready",
+                    f"Download queued for {mod.name}.\n\n"
+                    "Click 'Download on Nexus' to open the mod page in your browser, "
+                    "then click 'Mod Manager Download' on the website to start the download.",
+                )
+
+            # Switch to downloads tab
+            self.tab_widget.setCurrentWidget(self.downloads_panel)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to start download: {e}")
+            logger.error(f"Download failed: {e}")
+
+    @Slot(str, list)
+    def _on_nexus_mods_loaded(self, list_type: str, mods: list) -> None:
+        """Handle mods loaded signal from service.
+
+        Args:
+            list_type: Type of list (trending, latest, updated).
+            mods: List of mods.
+        """
+        if list_type == "trending":
+            self.nexus_browser.set_trending_mods(mods)
+        elif list_type == "latest":
+            self.nexus_browser.set_latest_mods(mods)
+        elif list_type == "updated":
+            self.nexus_browser.set_updated_mods(mods)
+
+    @Slot(NexusMod, list)
+    def _on_nexus_mod_details(self, mod: NexusMod, files: list) -> None:
+        """Handle mod details loaded signal.
+
+        Args:
+            mod: Mod information.
+            files: List of files.
+        """
+        # Details are already handled in _on_nexus_mod_selected
+        pass
+
+    @Slot(UUID, Path)
+    def _on_nexus_download_completed(self, download_id: UUID, file_path: Path) -> None:
+        """Handle download completion.
+
+        Args:
+            download_id: Download ID.
+            file_path: Path to downloaded file.
+        """
+        self.status_bar.showMessage("Download completed, installing...", 3000)
+
+    @Slot(UUID)
+    def _on_nexus_mod_installed(self, mod_id: UUID) -> None:
+        """Handle mod installation after download.
+
+        Args:
+            mod_id: Installed mod ID.
+        """
+        # Refresh mod list
+        self._refresh_all()
+        self.status_bar.showMessage("Mod installed successfully!", 3000)
+        logger.info(f"Nexus mod installed: {mod_id}")
+
+    @Slot(str)
+    def _on_nexus_error(self, error_message: str) -> None:
+        """Handle Nexus service error.
+
+        Args:
+            error_message: Error message.
+        """
+        # Create a more helpful error dialog
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Warning)
+        msg_box.setWindowTitle("Nexus Error")
+        msg_box.setText(error_message)
+
+        # Add helpful information for common errors
+        if "no longer available" in error_message.lower() or "404" in error_message:
+            msg_box.setInformativeText(
+                "You can still download this mod by:\n"
+                "1. Clicking 'Download on Nexus' button in the mod details\n"
+                "2. This will open the mod page in your browser\n"
+                "3. Click 'Mod Manager Download' on the website"
+            )
+
+        msg_box.exec()
+        self.status_bar.showMessage("Nexus error occurred", 3000)
+
+    def _handle_nxm_link_on_startup(self) -> None:
+        """Handle NXM link provided on app startup."""
+        if not self.nxm_link:
+            return
+
+        logger.info(f"Processing NXM link: {self.nxm_link}")
+
+        # Switch to downloads tab
+        self.tab_widget.setCurrentWidget(self.downloads_panel)
+
+        # Check if Nexus is configured
+        if not self.nexus_service.is_configured():
+            QMessageBox.warning(
+                self,
+                "Configuration Required",
+                "Please configure your Nexus API key in Settings first.",
+            )
+            self._on_settings()
+            return
+
+        # Process the NXM link
+        self.nexus_service.handle_nxm_link(self.nxm_link)
+        self.status_bar.showMessage("Processing NXM download link...", 3000)
 
     def closeEvent(self, event: object) -> None:
         """Handle window close event.

@@ -45,6 +45,11 @@ class Mod(BaseModel):
     archive_path: Optional[Path] = None
     archive_checksum: Optional[str] = None
 
+    # Nexus Mods metadata (for tracking updates and provenance)
+    nexus_mod_id: Optional[int] = None
+    nexus_file_id: Optional[int] = None
+    nexus_uploaded_at: Optional[datetime] = None
+
     class Config:
         json_encoders = {
             Path: str,
@@ -159,6 +164,106 @@ class DeploymentState(BaseModel):
 
     class Config:
         json_encoders = {
+            UUID: str,
+            datetime: lambda v: v.isoformat(),
+        }
+
+
+# Nexus Mods Integration Models
+
+
+class NexusUser(BaseModel):
+    """Represents a Nexus Mods user account."""
+
+    user_id: int
+    username: str
+    is_premium: bool
+    is_supporter: bool
+    profile_url: str
+
+    class Config:
+        json_encoders = {}
+
+
+class NexusMod(BaseModel):
+    """Represents a mod from Nexus Mods."""
+
+    mod_id: int
+    name: str
+    summary: str
+    description: str
+    author: str
+    uploaded_by: str
+    picture_url: Optional[str] = None
+    endorsement_count: int = 0
+    download_count: int = 0
+    category_id: int
+    version: str
+    created_time: datetime
+    updated_time: datetime
+    game_domain: str = "monsterhunterworld"
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+        }
+
+
+class NexusModFile(BaseModel):
+    """Represents a downloadable file for a Nexus mod."""
+
+    file_id: int
+    mod_id: int
+    name: str
+    version: str
+    category_name: str  # main, optional, old, etc.
+    size_kb: int
+    size_in_bytes: Optional[int] = None
+    uploaded_time: datetime
+    mod_version: Optional[str] = None
+    description: Optional[str] = None
+    changelog_html: Optional[str] = None
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+        }
+
+
+class DownloadStatus(str, Enum):
+    """Status of a download."""
+
+    PENDING = "pending"  # Waiting for user action (free tier)
+    QUEUED = "queued"  # In download queue
+    DOWNLOADING = "downloading"  # Actively downloading
+    EXTRACTING = "extracting"  # Extracting archive
+    INSTALLING = "installing"  # Installing to staging
+    COMPLETE = "complete"  # Successfully installed
+    FAILED = "failed"  # Failed with error
+    CANCELLED = "cancelled"  # Cancelled by user
+
+
+class PendingDownload(BaseModel):
+    """Represents a pending or active download from Nexus."""
+
+    id: UUID = Field(default_factory=uuid4)
+    mod_id: int
+    file_id: int
+    mod_name: str
+    file_name: str
+    file_version: str
+    size_bytes: int
+    status: DownloadStatus = DownloadStatus.PENDING
+    progress: float = 0.0  # 0.0 to 1.0
+    error_message: Optional[str] = None
+    download_path: Optional[Path] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        json_encoders = {
+            Path: str,
             UUID: str,
             datetime: lambda v: v.isoformat(),
         }
