@@ -19,10 +19,10 @@ class AppConfig(BaseModel):
 
     # Mod manager paths
     staging_directory: Path = Field(
-        default_factory=lambda: Path(user_data_dir("mhw-mod-manager", "MHW")) / "mods"
+        default_factory=lambda: Path(user_data_dir("azure-launcher", "MHW")) / "mods"
     )
     downloads_directory: Path = Field(
-        default_factory=lambda: Path(user_data_dir("mhw-mod-manager", "MHW")) / "downloads"
+        default_factory=lambda: Path(user_data_dir("azure-launcher", "MHW")) / "downloads"
     )
 
     # Deployment settings
@@ -53,7 +53,7 @@ class ConfigManager:
             config_dir: Directory to store config. If None, uses platform default.
         """
         if config_dir is None:
-            config_dir = Path(user_config_dir("mhw-mod-manager", "MHW"))
+            config_dir = Path(user_config_dir("azure-launcher", "MHW"))
 
         self.config_dir = config_dir
         self.config_file = config_dir / "config.toml"
@@ -112,20 +112,20 @@ class ConfigManager:
 
 def get_data_dir() -> Path:
     """Get the user data directory for the application."""
-    path = Path(user_data_dir("mhw-mod-manager", "MHW"))
+    path = Path(user_data_dir("azure-launcher", "MHW"))
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_log_dir() -> Path:
     """Get the user log directory for the application."""
-    path = Path(user_log_dir("mhw-mod-manager", "MHW"))
+    path = Path(user_log_dir("azure-launcher", "MHW"))
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def get_config_dir() -> Path:
     """Get the user config directory for the application."""
-    path = Path(user_config_dir("mhw-mod-manager", "MHW"))
+    path = Path(user_config_dir("azure-launcher", "MHW"))
     path.mkdir(parents=True, exist_ok=True)
     return path

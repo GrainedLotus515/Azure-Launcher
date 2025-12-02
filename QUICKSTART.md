@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get up and running with MHW Mod Manager in 5 minutes.
+Get up and running with Azure Launcher in 5 minutes.
 
 ## Installation (One-Time Setup)
 
@@ -27,7 +27,7 @@ uv pip install -e .
 source .venv/bin/activate  # if not already active
 
 # Launch the mod manager
-mhw-mod-manager
+azure-launcher
 ```
 
 That's it! The application will:
@@ -53,10 +53,10 @@ pytest
 
 ```bash
 # Run the application
-mhw-mod-manager
+azure-launcher
 
 # Run with activated environment
-source .venv/bin/activate && mhw-mod-manager
+source .venv/bin/activate && azure-launcher
 
 # Run tests
 pytest
@@ -70,9 +70,9 @@ uv pip install -e ".[dev]"
 
 ## File Locations
 
-- **Config**: `~/.config/mhw-mod-manager/config.toml`
-- **Mod Data**: `~/.local/share/mhw-mod-manager/`
-- **Logs**: `~/.cache/mhw-mod-manager/mhw_mod_manager.log`
+- **Config**: `~/.config/azure-launcher/config.toml`
+- **Mod Data**: `~/.local/share/azure-launcher/`
+- **Logs**: `~/.cache/azure-launcher/mhw_mod_manager.log`
 
 ## Getting Help
 

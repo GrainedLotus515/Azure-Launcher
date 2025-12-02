@@ -74,7 +74,7 @@ uv pip install -e ".[dev]"
 After installation, run the mod manager with:
 
 ```bash
-mhw-mod-manager
+azure-launcher
 ```
 
 Or directly with Python:
@@ -231,16 +231,16 @@ uv pip install --upgrade <package>
 
 The application stores data in standard XDG directories:
 
-- **Config**: `~/.config/mhw-mod-manager/`
+- **Config**: `~/.config/azure-launcher/`
   - `config.toml`: Application settings
   
-- **Data**: `~/.local/share/mhw-mod-manager/`
+- **Data**: `~/.local/share/azure-launcher/`
   - `mods.json`: Mod metadata
   - `profiles.json`: Profile configurations
   - `mods/`: Staging directory for mod files
   - `downloads/`: Archived mod files
   
-- **Logs**: `~/.local/share/mhw-mod-manager/` or `~/.cache/mhw-mod-manager/`
+- **Logs**: `~/.local/share/azure-launcher/` or `~/.cache/azure-launcher/`
   - `mhw_mod_manager.log`: Application logs
 
 ## Deployment Modes

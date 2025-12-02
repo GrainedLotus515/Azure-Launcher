@@ -1,9 +1,9 @@
 #!/bin/bash
-# MHW Mod Manager - Command Reference
+# Azure Launcher - Command Reference
 # This file shows all the commands to install, test, and run the application
 
 echo "=========================================="
-echo "MHW Mod Manager - Command Reference"
+echo "Azure Launcher - Command Reference"
 echo "=========================================="
 echo ""
 
@@ -29,7 +29,7 @@ echo "# Activate environment (if not already active)"
 echo "source .venv/bin/activate"
 echo ""
 echo "# Launch the mod manager"
-echo "mhw-mod-manager"
+echo "azure-launcher"
 echo ""
 echo "# Alternative: Run directly with Python"
 echo "python -m mhw_mod_manager.app"
@@ -68,7 +68,7 @@ echo ""
 echo "5. QUICK TEST COMMANDS"
 echo "-------------------------------------------"
 echo "# Test that installation worked"
-echo "which mhw-mod-manager"
+echo "which azure-launcher"
 echo ""
 echo "# Check Python version"
 echo "python --version"
